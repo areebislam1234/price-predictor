@@ -4,16 +4,6 @@ A RandomForest classifier predicting whether a stock or cryptocurrency's price
 will be higher ~1 month from now, evaluated with walk-forward cross-validation
 across 5 stocks and 5 cryptocurrencies.
 
-The interesting result here isn't the accuracy number. It's that **three
-separate methodology bugs made the model look better, then much worse, then
-roughly honest** as they were found and fixed — a non-stationary feature, an
-evaluation split that let future data leak into training, and a baseline
-metric that was silently computed from the test set's own future outcomes.
-See [Bugs found and fixed](#bugs-found-and-fixed) before quoting any number
-from this repo.
-
----
-
 ## What it does
 
 ```
