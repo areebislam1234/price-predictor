@@ -5,7 +5,6 @@ sys.path.append(str(Path(__file__).resolve().parent))
 
 from features import add_features, load_prices
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
 
 FEATURE_COLS = ["price_vs_ma7", "price_vs_ma30", "daily_return", "volatility", "rsi"]
 ASSETS = {
@@ -49,13 +48,26 @@ def fit_model(df, class_weight=None):
 def fit_and_eval(train_df, test_df, class_weight=None):
     model = fit_model(train_df, class_weight=class_weight)
     preds = model.predict(test_df[FEATURE_COLS])
-    acc = accuracy_score(test_df["target"], preds)
+    actual = test_df["target"].to_numpy()
+    correct_model = (preds == actual)
+    acc = correct_model.mean()
     # Baseline = accuracy of a naive predictor that always guesses whichever
     # class was more common in the TRAINING data -- what a real naive
     # predictor could actually achieve without seeing the future.
     train_majority_class = int(train_df["target"].mean() >= 0.5)
-    baseline = (test_df["target"] == train_majority_class).mean()
-    return model, preds, {"accuracy": acc, "baseline": baseline, "n_test": len(test_df)}
+    correct_baseline = (actual == train_majority_class)
+    baseline = correct_baseline.mean()
+    metrics = {
+        "accuracy": acc,
+        "baseline": baseline,
+        "n_test": len(test_df),
+        # Per-row, time-ordered booleans -- kept (not just the aggregated
+        # mean) so significance.py can block-bootstrap them to account for
+        # the autocorrelation that overlapping target windows introduce.
+        "correct_model": correct_model,
+        "correct_baseline": correct_baseline,
+    }
+    return model, preds, metrics
 
 
 def weighted_average(metric_list, key):
@@ -98,6 +110,12 @@ def walk_forward_evaluate(df, class_weight=None, horizon=1, n_splits=N_SPLITS):
         "baseline": weighted_average(fold_metrics, "baseline"),
         "n_test": sum(m["n_test"] for m in fold_metrics),
         "n_folds": len(fold_metrics),
+        # Raw per-fold detail (each with its own correct_model/correct_baseline
+        # arrays), for significance.py's block bootstrap. Folds are kept
+        # separate rather than flattened because each one is a distinct,
+        # non-overlapping time window -- exactly the unit that should be
+        # resampled/pooled, as opposed to individual rows.
+        "fold_metrics": fold_metrics,
     }
 
 
